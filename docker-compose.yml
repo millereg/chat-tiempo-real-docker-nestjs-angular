@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      dockerfile: Dockerfile
+      context: ./api
+      target: development
+    volumes:
+      - ./api:/millerdev/src/app
+      - /millerdev/src/app/node_modules
+    command: sh -c "npm install && npm run start:dev"
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgres://user:password@postgres:5432/db
+      - NODE_ENV=development
+      - PORT=3000
+      - CHOKIDAR_USEPOLLING=1
+    ports:
+      - 3000:3000
+      - 9229:9229  # Debugging
+
+  frontend:
+    build:
+      dockerfile: Dockerfile
+      context: ./frontend
+      target: development
+    command: npm run start
+    volumes:
+      - ./frontend:/millerdev/frontend/src/app
+      - /millerdev/frontend/src/app/node_modules
+    ports:
+      - 4200:4200
+    depends_on:
+      - api  # No es necesario `links`
+
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: db
+    ports:
+      - 5432:5432
+
+  postgres_admin:
+    image: dpage/pgadmin4:latest
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: password
+    ports:
+      - 5050:80
