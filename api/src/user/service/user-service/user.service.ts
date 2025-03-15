@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
-  defer,
   from,
   map,
   mapTo,
@@ -19,18 +18,19 @@ import {
 import { UserEntity } from 'src/user/models/User.entity';
 import { UserInterface } from 'src/user/models/user.interface';
 import { Repository } from 'typeorm';
-import * as bcryptjs from 'bcryptjs';
 import {
   IPaginationOptions,
   paginate,
   Pagination,
 } from 'nestjs-typeorm-paginate';
+import { AuthService } from 'src/auth/services/auth.service';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    private authService: AuthService,
   ) {}
 
   create(newUser: UserInterface): Observable<UserInterface> {
@@ -58,7 +58,7 @@ export class UserService {
     return from(paginate<UserEntity>(this.userRepository, options));
   }
 
-  login(user: UserInterface): Observable<boolean> {
+  login(user: UserInterface): Observable<string> {
     return this.findByEmail(user.email).pipe(
       mergeMap((foundUser: UserInterface) => {
         if (!foundUser) {
@@ -74,7 +74,9 @@ export class UserService {
               );
             }
 
-            return this.findOne(foundUser.id!).pipe(mapTo(true));
+            return this.findOne(foundUser.id!).pipe(
+              mergeMap((user) => this.authService.generateJwt(user)),
+            );
           }),
         );
       }),
@@ -98,14 +100,14 @@ export class UserService {
   }
 
   private hashPassword(password: string): Observable<string> {
-    return defer(() => bcryptjs.hash(password, 12));
+    return this.authService.hashPassword(password);
   }
 
   private validatePassword(
     password: string,
     storedPasswordHash: string,
   ): Observable<boolean> {
-    return defer(() => bcryptjs.compare(password, storedPasswordHash));
+    return this.authService.comparePassword(password, storedPasswordHash);
   }
 
   private findOne(id: number): Observable<UserInterface> {
